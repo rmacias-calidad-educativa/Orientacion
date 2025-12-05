@@ -162,7 +162,7 @@ orden_rangos = [
 # Interfaz principal
 # -----------------------------------------------------
 
-st.title("Tablero de resultados e-BEO (solo agregados)")
+st.title("Tablero de resultados Orientación")
 st.caption("Visualización de percentiles, rangos cualitativos e interpretación grupal por área, prueba, variable y sexo (sin datos personales).")
 
 with st.expander("¿Cómo se interpretan los percentiles y los rangos?"):
@@ -513,5 +513,6 @@ st.markdown(
     No se muestra ningún dato identificable (solo agregados por sexo, clase y área).
     """
 )
+
 
 
