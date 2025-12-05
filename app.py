@@ -440,7 +440,6 @@ st.dataframe(
 
 # ---------------- Gráficos por sexo ----------------
 
-# 4) Media de percentiles por variable y sexo (facet por sexo)
 st.markdown("### Gráfico 4: Media de percentiles por variable y sexo")
 
 chart_bar_sexo = (
@@ -449,16 +448,16 @@ chart_bar_sexo = (
     .encode(
         x=alt.X('Variable:N', sort=resumen['Variable'].tolist()),
         y=alt.Y('media:Q'),
+        color=alt.Color('Sexo:N', legend=None),
         tooltip=['Sexo', 'Variable', 'media', 'mediana', 'n', 'Rango_media']
     )
     .facet(
-        column=alt.Column('Sexo:N', header=alt.Header(title='Sexo'))
+        column='Sexo:N'
     )
 )
 
 st.altair_chart(chart_bar_sexo, use_container_width=True)
 
-# 5) Boxplot de percentiles por variable y sexo (facet)
 st.markdown("### Gráfico 5: Distribución de percentiles por variable y sexo (boxplot)")
 
 chart_box_sexo = (
@@ -467,10 +466,11 @@ chart_box_sexo = (
     .encode(
         x=alt.X('Variable:N'),
         y=alt.Y('Puntuacion:Q'),
+        color=alt.Color('Sexo:N', legend=None),
         tooltip=['Sexo', 'Variable', 'Puntuacion']
     )
     .facet(
-        column=alt.Column('Sexo:N', header=alt.Header(title='Sexo'))
+        column='Sexo:N'
     )
 )
 
@@ -491,15 +491,16 @@ chart_rangos_sexo = (
     .mark_bar()
     .encode(
         x=alt.X('Variable:N'),
-        y=alt.Y('n:Q',
-                stack='normalize',
-                axis=alt.Axis(format='%', title='Proporción de estudiantes')),
+        y=alt.Y(
+            'n:Q',
+            stack='normalize',
+            axis=alt.Axis(format='%', title='Proporción de estudiantes')
+        ),
         color=alt.Color('Rango:N', sort=orden_rangos),
-        order=alt.Order('Rango:N', sort=orden_rangos),
         tooltip=['Sexo', 'Variable', 'Rango', 'n']
     )
     .facet(
-        column=alt.Column('Sexo:N', header=alt.Header(title='Sexo'))
+        column='Sexo:N'
     )
 )
 
@@ -512,4 +513,5 @@ st.markdown(
     No se muestra ningún dato identificable (solo agregados por sexo, clase y área).
     """
 )
+
 
