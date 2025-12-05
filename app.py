@@ -316,15 +316,17 @@ chart_rangos = (
     .mark_bar()
     .encode(
         x=alt.X('Variable:N'),
-        y=alt.Y('n:Q',
-                stack='normalize',
-                axis=alt.Axis(format='%', title='Proporción de estudiantes')),
+        y=alt.Y(
+            'n:Q',
+            stack='normalize',
+            axis=alt.Axis(format='%', title='Proporción de estudiantes')
+        ),
+        # El orden jerárquico lo controla el sort de color
         color=alt.Color('Rango:N', sort=orden_rangos),
-        # Este order asegura que el apilado siga el orden jerárquico
-        order=alt.Order('Rango:N', sort=orden_rangos),
         tooltip=['Variable', 'Rango', 'n']
     )
 )
+
 
 st.altair_chart(chart_rangos, use_container_width=True)
 
@@ -510,3 +512,4 @@ st.markdown(
     No se muestra ningún dato identificable (solo agregados por sexo, clase y área).
     """
 )
+
