@@ -1,0 +1,377 @@
+import streamlit as st
+import pandas as pd
+import altair as alt
+
+# -----------------------------------------------------
+# Configuración general de la página
+# -----------------------------------------------------
+st.set_page_config(page_title="Tablero e-BEO", layout="wide")
+
+# -----------------------------------------------------
+# Funciones auxiliares
+# -----------------------------------------------------
+
+def clasificar_percentil(p):
+    """
+    Asigna un rango cualitativo según el percentil.
+    Rangos aproximados basados en desviaciones típicas:
+    Muy bajo, Bajo, Medio-bajo, Medio, Medio-alto, Alto, Muy alto.
+    Ajusta si quieres otros cortes.
+    """
+    if pd.isna(p):
+        return None
+    p = float(p)
+    if p <= 2:
+        return "Muy bajo"
+    elif p <= 15:
+        return "Bajo"
+    elif p <= 30:
+        return "Medio-bajo"
+    elif p <= 69:
+        return "Medio"
+    elif p <= 84:
+        return "Medio-alto"
+    elif p <= 97:
+        return "Alto"
+    else:
+        return "Muy alto"
+
+
+def sheet_to_long(df: pd.DataFrame, area: str) -> pd.DataFrame:
+    # Normalizar nombre de columna
+    df = df.rename(columns={'Número lista': 'Numero lista'})
+    personal = {'Numero lista', 'NIA', 'Nombre', 'Apellidos'}
+    base_cols = [c for c in df.columns if c in ['Clase', 'Sexo']]
+    value_cols = [c for c in df.columns
+                  if c not in personal and c not in base_cols]
+
+    long_df = df.melt(
+        id_vars=base_cols,
+        value_vars=value_cols,
+        var_name='Variable',
+        value_name='Puntuacion'
+    )
+    long_df['Area'] = area
+    long_df['Puntuacion'] = pd.to_numeric(long_df['Puntuacion'],
+                                          errors='coerce')
+    return long_df
+
+
+def ipp_sheet_to_long(xls: pd.ExcelFile) -> pd.DataFrame:
+    # Hoja de IPP con cabecera en dos filas
+    df = pd.read_excel(
+        xls,
+        "Orientación vocacional - IPP-R",
+        header=[0, 1]
+    )
+    base1 = ['Clase', 'Número lista', 'NIA', 'Nombre', 'Apellidos', 'Sexo']
+    base_cols = [col for col in df.columns if col[1] in base1]
+    var_cols = [col for col in df.columns if col not in base_cols]
+
+    data = {}
+    # columnas base (Clase, Sexo, etc.)
+    for col in base_cols:
+        name = col[1]
+        if name == 'Número lista':
+            name = 'Numero lista'
+        data[name] = df[col]
+
+    # variables de orientación vocacional
+    for col in var_cols:
+        name = f"{col[0]} - {col[1]}"  # ej. "Campo científico - Actividades"
+        data[name] = df[col]
+
+    df2 = pd.DataFrame(data)
+    personal = {'Numero lista', 'NIA', 'Nombre', 'Apellidos'}
+    base_cols_simple = [c for c in df2.columns if c in ['Clase', 'Sexo']]
+    value_cols = [c for c in df2.columns
+                  if c not in personal and c not in base_cols_simple]
+
+    long_df = df2.melt(
+        id_vars=base_cols_simple,
+        value_vars=value_cols,
+        var_name='Variable',
+        value_name='Puntuacion'
+    )
+    long_df['Area'] = 'Orientación vocacional (IPP-R)'
+    long_df['Puntuacion'] = pd.to_numeric(long_df['Puntuacion'],
+                                          errors='coerce')
+    return long_df
+
+
+@st.cache_data
+def build_long_dataset(path: str) -> pd.DataFrame:
+    """
+    Carga el Excel, pasa todo a formato largo y limpia valores especiales (-999).
+    """
+    xls = pd.ExcelFile(path)
+    sheets = {name: pd.read_excel(xls, name) for name in xls.sheet_names}
+
+    parts = []
+    parts.append(sheet_to_long(
+        sheets['Ap. intelectuales - EFAI 4'],
+        'Aptitudes intelectuales (EFAI 4)'
+    ))
+    parts.append(sheet_to_long(
+        sheets['Ap. intelectuales - BAT 7-S'],
+        'Aptitudes intelectuales (BAT 7-S)'
+    ))
+    parts.append(sheet_to_long(
+        sheets['Atención - CARAS-R, Test de Pe'],
+        'Atención (CARAS-R)'
+    ))
+    parts.append(sheet_to_long(
+        sheets['Atención - BAT 7-S'],
+        'Atención (BAT 7-S)'
+    ))
+    parts.append(sheet_to_long(
+        sheets['Inteligencia emocional - CTI'],
+        'Inteligencia emocional (CTI)'
+    ))
+    parts.append(ipp_sheet_to_long(xls))
+
+    big = pd.concat(parts, ignore_index=True)
+
+    # Limpiar puntuaciones: numérico y sin códigos negativos (-999 = sin dato)
+    big['Puntuacion'] = pd.to_numeric(big['Puntuacion'], errors='coerce')
+    big.loc[big['Puntuacion'] < 0, 'Puntuacion'] = pd.NA
+    big = big.dropna(subset=['Puntuacion'])
+
+    return big
+
+
+# -----------------------------------------------------
+# Carga de datos
+# -----------------------------------------------------
+
+excel_path = "Ebeo_Percentiles.xlsx"   # Ajusta si está en otra ruta
+data = build_long_dataset(excel_path)
+
+# Añadir el rango cualitativo por percentil
+data = data.copy()
+data['Rango'] = data['Puntuacion'].apply(clasificar_percentil)
+
+orden_rangos = [
+    "Muy bajo", "Bajo", "Medio-bajo",
+    "Medio", "Medio-alto", "Alto", "Muy alto"
+]
+
+# -----------------------------------------------------
+# Interfaz principal
+# -----------------------------------------------------
+
+st.title("Tablero de resultados e-BEO (solo agregados)")
+st.caption("Visualización de percentiles, rangos cualitativos e interpretación grupal por área, prueba y variable (sin datos personales).")
+
+with st.expander("¿Cómo se interpretan los percentiles y los rangos?"):
+    st.markdown(
+        """
+- Los **percentiles** van de 1 a 99 y expresan la **posición relativa** del estudiante frente al grupo normativo.
+- Un percentil 50 implica que el resultado es similar al de la mitad del grupo; un percentil 75 indica que está por encima del 75 % del grupo, etc.
+- Para facilitar la lectura, agrupamos los percentiles en 7 **rangos cualitativos** aproximados:
+
+  - **Muy bajo**: percentiles ≤ 2  
+  - **Bajo**: 3–15  
+  - **Medio-bajo**: 16–30  
+  - **Medio**: 31–69  
+  - **Medio-alto**: 70–84  
+  - **Alto**: 85–97  
+  - **Muy alto**: 98–99  
+
+Estos rangos siguen la lógica del informe profesional (basada en desviaciones típicas) y están pensados para describir 
+si el grupo se sitúa por debajo, en torno o por encima del promedio del grupo normativo.
+        """
+    )
+
+# ---------------- Filtros globales (no personales) ----------------
+
+col1, col2 = st.columns(2)
+
+with col1:
+    clases = sorted(data['Clase'].dropna().unique())
+    clases_sel = st.multiselect(
+        "Filtrar por sede/curso (columna 'Clase')",
+        options=clases,
+        default=clases
+    )
+
+with col2:
+    sexos = sorted(data['Sexo'].dropna().unique())
+    sexos_sel = st.multiselect(
+        "Filtrar por sexo",
+        options=sexos,
+        default=sexos
+    )
+
+df_filtrado = data[
+    data['Clase'].isin(clases_sel) &
+    data['Sexo'].isin(sexos_sel)
+].copy()
+
+# ---------------- Selección de área y variables ----------------
+
+st.markdown("### Selección de área y variables")
+
+if df_filtrado.empty:
+    st.warning("No hay datos con los filtros actuales (Clase / Sexo).")
+    st.stop()
+
+area_sel = st.selectbox(
+    "Área de evaluación",
+    options=sorted(df_filtrado['Area'].unique())
+)
+
+df_area = df_filtrado[df_filtrado['Area'] == area_sel].copy()
+
+vars_disponibles = sorted(df_area['Variable'].unique())
+vars_sel = st.multiselect(
+    "Variables dentro del área",
+    options=vars_disponibles,
+    default=vars_disponibles
+)
+
+df_area = df_area[df_area['Variable'].isin(vars_sel)].copy()
+
+if df_area.empty:
+    st.warning("No hay datos para las variables seleccionadas.")
+    st.stop()
+
+# -----------------------------------------------------
+# Resumen numérico agregado
+# -----------------------------------------------------
+
+st.markdown("### Resumen estadístico por variable (percentiles de grupo)")
+
+resumen = (
+    df_area
+    .groupby('Variable')['Puntuacion']
+    .agg(['count', 'mean', 'median', 'std', 'min', 'max'])
+    .reset_index()
+    .rename(columns={
+        'count': 'n',
+        'mean': 'media',
+        'median': 'mediana',
+        'std': 'des_est',
+        'min': 'minimo',
+        'max': 'maximo'
+    })
+    .sort_values('media', ascending=False)
+)
+
+resumen['Rango_media'] = resumen['media'].apply(clasificar_percentil)
+
+st.dataframe(
+    resumen[['Variable', 'n', 'media', 'mediana', 'des_est', 'minimo', 'maximo', 'Rango_media']],
+    use_container_width=True
+)
+
+# -----------------------------------------------------
+# Gráficos agregados
+# -----------------------------------------------------
+
+# 1) Media de percentiles por variable
+st.markdown("### Gráfico 1: Media de percentiles por variable")
+
+chart_bar = (
+    alt.Chart(resumen)
+    .mark_bar()
+    .encode(
+        x=alt.X('Variable:N', sort='-y'),
+        y=alt.Y('media:Q'),
+        tooltip=['Variable', 'media', 'mediana', 'n', 'Rango_media']
+    )
+)
+
+st.altair_chart(chart_bar, use_container_width=True)
+
+# 2) Distribución de percentiles (boxplot)
+st.markdown("### Gráfico 2: Distribución de percentiles por variable (boxplot)")
+
+chart_box = (
+    alt.Chart(df_area)
+    .mark_boxplot()
+    .encode(
+        x=alt.X('Variable:N'),
+        y=alt.Y('Puntuacion:Q'),
+        tooltip=['Variable', 'Puntuacion']
+    )
+)
+
+st.altair_chart(chart_box, use_container_width=True)
+
+# 3) NUEVO: Distribución de rangos cualitativos
+st.markdown("### Gráfico 3: Porcentaje de estudiantes en cada rango cualitativo")
+
+dist = (
+    df_area
+    .groupby(['Variable', 'Rango'])
+    .size()
+    .reset_index(name='n')
+)
+
+chart_rangos = (
+    alt.Chart(dist)
+    .mark_bar()
+    .encode(
+        x=alt.X('Variable:N'),
+        y=alt.Y('n:Q', stack='normalize',
+                axis=alt.Axis(format='%', title='Proporción de estudiantes')),
+        color=alt.Color('Rango:N', sort=orden_rangos),
+        tooltip=['Variable', 'Rango', 'n']
+    )
+)
+
+st.altair_chart(chart_rangos, use_container_width=True)
+
+st.markdown(
+    """
+    **Nota:** El gráfico muestra, para cada variable, qué porcentaje del grupo se sitúa
+    en cada rango (Muy bajo, Bajo, Medio-bajo, Medio, Medio-alto, Alto, Muy alto).
+    """
+)
+
+# -----------------------------------------------------
+# Interpretación automática (texto)
+# -----------------------------------------------------
+
+st.markdown("### Interpretación automática del grupo (por variable)")
+
+interpretaciones = []
+for _, row in resumen.iterrows():
+    r = row['Rango_media']
+    if r is None:
+        continue
+    var = row['Variable']
+    media = row['media']
+
+    if r in ["Muy bajo", "Bajo"]:
+        extra = (
+            "conviene revisar si existen factores contextuales o dificultades "
+            "específicas que estén influyendo en esta área."
+        )
+    elif r in ["Medio-bajo", "Medio"]:
+        extra = (
+            "el rendimiento grupal es similar al de la mayoría de estudiantes "
+            "del grupo normativo."
+        )
+    else:  # Medio-alto, Alto, Muy alto
+        extra = (
+            "se observa un punto fuerte del grupo en comparación con el grupo normativo."
+        )
+
+    interpretaciones.append(
+        f"- **{var}**: nivel **{r}** (percentil medio ≈ {media:.0f}); {extra}"
+    )
+
+st.markdown(
+    "Estas frases están pensadas para usarse en informes de grupo o presentaciones:"
+)
+for linea in interpretaciones:
+    st.markdown(linea)
+
+st.markdown(
+    """
+    _Recuerda_: Estas interpretaciones son **agrupadas**. Dentro del mismo curso o sede
+    puede haber estudiantes individuales con perfiles muy distintos.
+    """
+)
