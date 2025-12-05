@@ -16,7 +16,6 @@ def clasificar_percentil(p):
     Asigna un rango cualitativo según el percentil.
     Rangos aproximados basados en desviaciones típicas:
     Muy bajo, Bajo, Medio-bajo, Medio, Medio-alto, Alto, Muy alto.
-    Ajusta si quieres otros cortes.
     """
     if pd.isna(p):
         return None
@@ -58,7 +57,10 @@ def sheet_to_long(df: pd.DataFrame, area: str) -> pd.DataFrame:
 
 
 def ipp_sheet_to_long(xls: pd.ExcelFile) -> pd.DataFrame:
-    # Hoja de IPP con cabecera en dos filas
+    """
+    Pasa la hoja de orientación vocacional (IPP-R) a formato largo.
+    Usa cabecera en dos filas (área / Actividades - Profesiones).
+    """
     df = pd.read_excel(
         xls,
         "Orientación vocacional - IPP-R",
@@ -161,7 +163,7 @@ orden_rangos = [
 # -----------------------------------------------------
 
 st.title("Tablero de resultados e-BEO (solo agregados)")
-st.caption("Visualización de percentiles, rangos cualitativos e interpretación grupal por área, prueba y variable (sin datos personales).")
+st.caption("Visualización de percentiles, rangos cualitativos e interpretación grupal por área, prueba, variable y sexo (sin datos personales).")
 
 with st.expander("¿Cómo se interpretan los percentiles y los rangos?"):
     st.markdown(
@@ -178,7 +180,7 @@ with st.expander("¿Cómo se interpretan los percentiles y los rangos?"):
   - **Alto**: 85–97  
   - **Muy alto**: 98–99  
 
-Estos rangos siguen la lógica del informe profesional (basada en desviaciones típicas) y están pensados para describir 
+Estos rangos siguen la lógica del informe (basada en desviaciones típicas) y están pensados para describir 
 si el grupo se sitúa por debajo, en torno o por encima del promedio del grupo normativo.
         """
     )
@@ -237,10 +239,10 @@ if df_area.empty:
     st.stop()
 
 # -----------------------------------------------------
-# Resumen numérico agregado
+# Resumen numérico agregado (grupo completo)
 # -----------------------------------------------------
 
-st.markdown("### Resumen estadístico por variable (percentiles de grupo)")
+st.markdown("### Resumen estadístico por variable (percentiles del grupo)")
 
 resumen = (
     df_area
@@ -266,11 +268,11 @@ st.dataframe(
 )
 
 # -----------------------------------------------------
-# Gráficos agregados
+# Gráficos agregados (grupo completo)
 # -----------------------------------------------------
 
 # 1) Media de percentiles por variable
-st.markdown("### Gráfico 1: Media de percentiles por variable")
+st.markdown("### Gráfico 1: Media de percentiles por variable (grupo completo)")
 
 chart_bar = (
     alt.Chart(resumen)
@@ -285,7 +287,7 @@ chart_bar = (
 st.altair_chart(chart_bar, use_container_width=True)
 
 # 2) Distribución de percentiles (boxplot)
-st.markdown("### Gráfico 2: Distribución de percentiles por variable (boxplot)")
+st.markdown("### Gráfico 2: Distribución de percentiles por variable (boxplot, grupo completo)")
 
 chart_box = (
     alt.Chart(df_area)
@@ -299,8 +301,8 @@ chart_box = (
 
 st.altair_chart(chart_box, use_container_width=True)
 
-# 3) NUEVO: Distribución de rangos cualitativos
-st.markdown("### Gráfico 3: Porcentaje de estudiantes en cada rango cualitativo")
+# 3) Distribución de rangos cualitativos (apilado jerárquico)
+st.markdown("### Gráfico 3: Porcentaje de estudiantes en cada rango cualitativo (grupo completo)")
 
 dist = (
     df_area
@@ -314,9 +316,12 @@ chart_rangos = (
     .mark_bar()
     .encode(
         x=alt.X('Variable:N'),
-        y=alt.Y('n:Q', stack='normalize',
+        y=alt.Y('n:Q',
+                stack='normalize',
                 axis=alt.Axis(format='%', title='Proporción de estudiantes')),
         color=alt.Color('Rango:N', sort=orden_rangos),
+        # Este order asegura que el apilado siga el orden jerárquico
+        order=alt.Order('Rango:N', sort=orden_rangos),
         tooltip=['Variable', 'Rango', 'n']
     )
 )
@@ -326,12 +331,13 @@ st.altair_chart(chart_rangos, use_container_width=True)
 st.markdown(
     """
     **Nota:** El gráfico muestra, para cada variable, qué porcentaje del grupo se sitúa
-    en cada rango (Muy bajo, Bajo, Medio-bajo, Medio, Medio-alto, Alto, Muy alto).
+    en cada rango (Muy bajo, Bajo, Medio-bajo, Medio, Medio-alto, Alto, Muy alto),
+    respetando este orden jerárquico tanto en la leyenda como en la pila.
     """
 )
 
 # -----------------------------------------------------
-# Interpretación automática (texto)
+# Interpretación automática (grupo completo)
 # -----------------------------------------------------
 
 st.markdown("### Interpretación automática del grupo (por variable)")
@@ -373,5 +379,134 @@ st.markdown(
     """
     _Recuerda_: Estas interpretaciones son **agrupadas**. Dentro del mismo curso o sede
     puede haber estudiantes individuales con perfiles muy distintos.
+    """
+)
+
+# -----------------------------------------------------
+# NUEVO BLOQUE: Análisis desagregado por sexo
+# -----------------------------------------------------
+
+st.markdown("## Análisis desagregado por sexo")
+
+# ---------------- Resumen por sexo y variable ----------------
+
+resumen_sexo = (
+    df_area
+    .groupby(['Sexo', 'Variable'])['Puntuacion']
+    .agg(['count', 'mean', 'median', 'std', 'min', 'max'])
+    .reset_index()
+    .rename(columns={
+        'count': 'n',
+        'mean': 'media',
+        'median': 'mediana',
+        'std': 'des_est',
+        'min': 'minimo',
+        'max': 'maximo'
+    })
+)
+
+resumen_sexo['Rango_media'] = resumen_sexo['media'].apply(clasificar_percentil)
+
+st.markdown("### Tabla 1. Resumen por variable y sexo (percentiles)")
+
+st.dataframe(
+    resumen_sexo[['Sexo', 'Variable', 'n', 'media', 'mediana', 'des_est', 'minimo', 'maximo', 'Rango_media']],
+    use_container_width=True
+)
+
+# ---------------- Distribución de rangos por sexo ----------------
+
+st.markdown("### Tabla 2. Distribución de rangos cualitativos por sexo y variable")
+
+tabla_rangos_sexo = (
+    df_area
+    .groupby(['Sexo', 'Variable', 'Rango'])
+    .size()
+    .reset_index(name='n')
+)
+
+# calcular porcentaje dentro de cada Sexo-Variable
+tabla_rangos_sexo['porcentaje'] = (
+    tabla_rangos_sexo['n'] /
+    tabla_rangos_sexo.groupby(['Sexo', 'Variable'])['n'].transform('sum') * 100
+).round(1)
+
+st.dataframe(
+    tabla_rangos_sexo.sort_values(['Sexo', 'Variable', 'Rango']),
+    use_container_width=True
+)
+
+# ---------------- Gráficos por sexo ----------------
+
+# 4) Media de percentiles por variable y sexo (facet por sexo)
+st.markdown("### Gráfico 4: Media de percentiles por variable y sexo")
+
+chart_bar_sexo = (
+    alt.Chart(resumen_sexo)
+    .mark_bar()
+    .encode(
+        x=alt.X('Variable:N', sort=resumen['Variable'].tolist()),
+        y=alt.Y('media:Q'),
+        tooltip=['Sexo', 'Variable', 'media', 'mediana', 'n', 'Rango_media']
+    )
+    .facet(
+        column=alt.Column('Sexo:N', header=alt.Header(title='Sexo'))
+    )
+)
+
+st.altair_chart(chart_bar_sexo, use_container_width=True)
+
+# 5) Boxplot de percentiles por variable y sexo (facet)
+st.markdown("### Gráfico 5: Distribución de percentiles por variable y sexo (boxplot)")
+
+chart_box_sexo = (
+    alt.Chart(df_area)
+    .mark_boxplot()
+    .encode(
+        x=alt.X('Variable:N'),
+        y=alt.Y('Puntuacion:Q'),
+        tooltip=['Sexo', 'Variable', 'Puntuacion']
+    )
+    .facet(
+        column=alt.Column('Sexo:N', header=alt.Header(title='Sexo'))
+    )
+)
+
+st.altair_chart(chart_box_sexo, use_container_width=True)
+
+# 6) Distribución de rangos cualitativos por variable y sexo (apilado jerárquico + facet)
+st.markdown("### Gráfico 6: Porcentaje de estudiantes en cada rango, por variable y sexo")
+
+dist_sexo = (
+    df_area
+    .groupby(['Sexo', 'Variable', 'Rango'])
+    .size()
+    .reset_index(name='n')
+)
+
+chart_rangos_sexo = (
+    alt.Chart(dist_sexo)
+    .mark_bar()
+    .encode(
+        x=alt.X('Variable:N'),
+        y=alt.Y('n:Q',
+                stack='normalize',
+                axis=alt.Axis(format='%', title='Proporción de estudiantes')),
+        color=alt.Color('Rango:N', sort=orden_rangos),
+        order=alt.Order('Rango:N', sort=orden_rangos),
+        tooltip=['Sexo', 'Variable', 'Rango', 'n']
+    )
+    .facet(
+        column=alt.Column('Sexo:N', header=alt.Header(title='Sexo'))
+    )
+)
+
+st.altair_chart(chart_rangos_sexo, use_container_width=True)
+
+st.markdown(
+    """
+    En estos gráficos se ve, para cada **sexo**, cómo se distribuyen los percentiles
+    y los rangos cualitativos en cada variable.  
+    No se muestra ningún dato identificable (solo agregados por sexo, clase y área).
     """
 )
