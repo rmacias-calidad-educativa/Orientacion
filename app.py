@@ -199,6 +199,23 @@ VARIABLE_INFO = {
         "Control del estilo de respuesta; refleja tendencia más impulsiva o más reflexiva."
     ),
 
+        # ---------------- Atención y percepción (CARAS-R) ----------------
+    "Errores": (
+        "Respuestas incorrectas en la tarea de atención. Pueden ser por comisión "
+        "(marcar una opción que no corresponde) u omisión según el diseño del registro. "
+        "Este indicador no se interpreta aislado: se integra con los aciertos para "
+        "calcular la eficacia atencional global (por ejemplo, en aciertos netos A-E), "
+        "combinando precisión y control del error."
+    ),
+
+    "Índice de control de impulsividad": (
+        "Indicador que refleja el estilo de respuesta del estudiante. Integra aciertos "
+        "y errores para estimar el grado de control en la toma de decisiones durante la tarea. "
+        "Un índice más alto suele asociarse a un estilo más reflexivo y cuidadoso; "
+        "un índice más bajo sugiere mayor impulsividad relativa (respuesta rápida con "
+        "mayor costo de error)."
+    ),
+
     # ---------------- Inteligencia emocional (CTI) ----------------
     "Pensamiento constructivo global (PCG)": (
         "Indicador global de estilos de pensamiento que pueden facilitar "
@@ -302,6 +319,16 @@ ALIASES = {
     "A E": "Aciertos netos (A-E)",
     "ICI": "Control impulsividad (ICI)",
     "CONTROL IMPULSIVIDAD": "Control impulsividad (ICI)",
+
+        # CARAS-R - etiquetas frecuentes del Excel
+    "ERRORES": "Errores",
+    "ERROR": "Errores",
+    "E": "Errores",
+
+    "INDICE DE CONTROL DE IMPULSIVIDAD": "Índice de control de impulsividad",
+    "INDICE CONTROL IMPULSIVIDAD": "Índice de control de impulsividad",
+    "CONTROL DE IMPULSIVIDAD": "Índice de control de impulsividad",
+
 
     # CTI (por si llegan en mayúscula plana)
     "PCG": "Pensamiento constructivo global (PCG)",
@@ -733,3 +760,4 @@ y los rangos cualitativos en cada variable.
 No se muestra ningún dato identificable (solo agregados por sexo, clase y área).
     """
 )
+
