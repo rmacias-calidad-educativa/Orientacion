@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import altair as alt
+import unicodedata
 
 # -----------------------------------------------------
 # Configuración general de la página
@@ -51,8 +52,7 @@ def sheet_to_long(df: pd.DataFrame, area: str) -> pd.DataFrame:
         value_name='Puntuacion'
     )
     long_df['Area'] = area
-    long_df['Puntuacion'] = pd.to_numeric(long_df['Puntuacion'],
-                                          errors='coerce')
+    long_df['Puntuacion'] = pd.to_numeric(long_df['Puntuacion'], errors='coerce')
     return long_df
 
 
@@ -96,8 +96,7 @@ def ipp_sheet_to_long(xls: pd.ExcelFile) -> pd.DataFrame:
         value_name='Puntuacion'
     )
     long_df['Area'] = 'Orientación vocacional (IPP-R)'
-    long_df['Puntuacion'] = pd.to_numeric(long_df['Puntuacion'],
-                                          errors='coerce')
+    long_df['Puntuacion'] = pd.to_numeric(long_df['Puntuacion'], errors='coerce')
     return long_df
 
 
@@ -143,109 +142,101 @@ def build_long_dataset(path: str) -> pd.DataFrame:
 
 
 # -----------------------------------------------------
-# Carga de datos
+# Normalización de nombres de variables (robusta)
 # -----------------------------------------------------
 
-excel_path = "Ebeo_Percentiles.xlsx"   # Ajusta si está en otra ruta
-data = build_long_dataset(excel_path)
+def normalize_var(s: str) -> str:
+    if s is None:
+        return ""
+    s = str(s).strip().upper()
+    # quitar tildes/diacríticos
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "Mn")
+    # limpiar separadores
+    s = s.replace("_", " ").replace("-", " ")
+    s = " ".join(s.split())
+    return s
 
-# Añadir el rango cualitativo por percentil
-data = data.copy()
-data['Rango'] = data['Puntuacion'].apply(clasificar_percentil)
 
-orden_rangos = [
-    "Muy bajo", "Bajo", "Medio-bajo",
-    "Medio", "Medio-alto", "Alto", "Muy alto"
-]
 # -----------------------------------------------------
 # Definiciones simples por variable (para no psicólogos)
-# Basadas en los epígrafes "¿Qué evalúa?" del informe e-BEO.
+# + mapa de alias para coincidir con etiquetas del Excel
 # -----------------------------------------------------
 
 VARIABLE_INFO = {
-    # ---------------- Aptitudes intelectuales (EFAI 4 / BAT 7-S) ----------------
+    # ---------------- Aptitudes intelectuales ----------------
     "Aptitud espacial": (
         "Habilidad para imaginar y manipular mentalmente objetos "
-        "(girarlos, moverlos), orientarse y comprender relaciones espaciales."
+        "(rotarlos, ubicarlos), orientarse y comprender relaciones espaciales."
     ),
     "Aptitud numérica": (
-        "Habilidad para razonar con números: realizar operaciones, "
-        "resolver problemas numéricos e interpretar tablas y gráficos."
+        "Habilidad para razonar con números: realizar operaciones y "
+        "resolver problemas numéricos, interpretando información cuantitativa."
     ),
     "Razonamiento abstracto": (
-        "Habilidad para descubrir reglas y relaciones lógicas en problemas "
-        "nuevos o con figuras/series abstractas."
+        "Habilidad para detectar patrones y reglas lógicas en problemas nuevos "
+        "o con estímulos abstractos."
     ),
     "Aptitud verbal": (
         "Habilidad para comprender y razonar con palabras; "
-        "se relaciona con vocabulario y comprensión de conceptos."
+        "se relaciona con vocabulario y comprensión de ideas."
     ),
 
     # ---------------- Atención (BAT 7-S) ----------------
-    # Según el manual, son dos componentes complementarios:
     "Atención": (
-        "Velocidad para identificar información relevante e ignorar lo irrelevante "
-        "en tareas visuales. Se asocia a rapidez de procesamiento."
-    ),
-    "Concentración": (
-        "Precisión al procesar información visual, independiente de la velocidad. "
-        "Se asocia a calidad del procesamiento."
-    ),
-    # Variantes frecuentes de nombre en hojas:
-    "Atención (A)": (
-        "Velocidad para identificar información relevante e ignorar lo irrelevante "
+        "Velocidad para identificar información relevante e ignorar distractores "
         "en tareas visuales."
     ),
-    "Concentración (CON)": (
+    "Concentración": (
         "Precisión del procesamiento visual, independiente de la velocidad."
     ),
 
-    # ---------------- Atención y percepción (CARAS-R) ----------------
+    # ---------------- Atención (CARAS-R) ----------------
     "Aciertos netos (A-E)": (
         "Eficacia visoperceptiva y atencional considerando aciertos y errores."
     ),
     "Control impulsividad (ICI)": (
-        "Grado de control al responder; refleja un estilo más impulsivo o más reflexivo."
+        "Control del estilo de respuesta; refleja tendencia más impulsiva o más reflexiva."
     ),
 
     # ---------------- Inteligencia emocional (CTI) ----------------
     "Pensamiento constructivo global (PCG)": (
-        "Indicador general de la forma de pensar que facilita o dificulta "
-        "afrontar problemas de manera eficaz."
+        "Indicador global de estilos de pensamiento que pueden facilitar "
+        "o dificultar el afrontamiento eficaz de problemas cotidianos."
     ),
     "Afrontamiento emocional": (
-        "Forma de manejar emociones negativas con autoaceptación, resiliencia "
-        "y sin sobregeneralizar ni rumiar en exceso."
+        "Manejo de emociones negativas con autoaceptación, resiliencia "
+        "y menor tendencia a la rumiación."
     ),
     "Autoaceptación": (
         "Autoestima y actitud favorable hacia uno mismo."
     ),
     "Aus. de sobregeneralización": (
-        "Capacidad de interpretar experiencias negativas sin concluir que 'todo saldrá mal'."
+        "Menor tendencia a concluir que un evento negativo implica que 'todo saldrá mal'."
     ),
     "Aus. de hipersensibilidad": (
-        "Resiliencia ante críticas, contratiempos o incertidumbre."
+        "Mayor tolerancia a críticas, incertidumbre y contratiempos."
     ),
     "Aus. de rumiaciones": (
-        "Tendencia baja a quedarse enganchado a lo negativo."
+        "Menor tendencia a quedarse enganchado a lo negativo."
     ),
     "Afrontamiento conductual": (
-        "Forma de pensar que impulsa acciones eficaces ante problemas."
+        "Estilo de pensamiento orientado a resolver problemas mediante acción eficaz."
     ),
     "Pensamiento positivo": (
-        "Tendencia a interpretar situaciones de forma realista y favorable para actuar."
+        "Tendencia a interpretar situaciones de modo realista y favorable para actuar."
     ),
     "Orientación a la acción": (
         "Tendencia a actuar ante los problemas en vez de postergar."
     ),
     "Responsabilidad": (
-        "Planificación y cuidado al realizar tareas."
+        "Planificación, cuidado y cumplimiento en tareas y decisiones."
     ),
     "Pensamiento mágico": (
-        "Tendencia a supersticiones privadas o ideas no basadas en evidencia."
+        "Tendencia a explicar hechos con supersticiones privadas o ideas no basadas en evidencia."
     ),
     "Pensamiento categórico": (
-        "Tendencia a ver la realidad en blanco/negro, con poca tolerancia a matices."
+        "Tendencia a ver la realidad en blanco/negro, con baja tolerancia a matices."
     ),
     "Pensamiento polarizado": (
         "Componente de rigidez cognitiva tipo 'todo o nada'."
@@ -254,19 +245,19 @@ VARIABLE_INFO = {
         "Tendencia a desconfiar o interpretar intenciones negativas en otros."
     ),
     "Intransigencia": (
-        "Dificultad para aceptar diferencias en los demás."
+        "Dificultad para aceptar diferencias o puntos de vista alternativos."
     ),
     "Pensamiento esotérico": (
         "Tendencia a creer en fenómenos mágicos o paranormales."
     ),
     "Creencias paranormales": (
-        "Creencia en fenómenos como lectura de mente, fantasmas, clarividencia, etc."
+        "Creencia en fenómenos como clarividencia, lectura de mente, etc."
     ),
     "Pensamiento supersticioso": (
         "Creencia en supersticiones convencionales y agüeros."
     ),
     "Optimismo ingenuo": (
-        "Optimismo sin suficiente fundamento; puede llevar a decisiones poco realistas."
+        "Optimismo poco realista; puede llevar a juicios o decisiones sin suficiente fundamento."
     ),
     "Pensamiento exagerado": (
         "Esperar éxitos encadenados tras un resultado favorable."
@@ -279,15 +270,55 @@ VARIABLE_INFO = {
     ),
 }
 
+# Aliases para capturar cómo suelen venir en el Excel
+ALIASES = {
+    # Aptitudes intelectuales
+    "ESPACIAL": "Aptitud espacial",
+    "APTITUD ESPACIAL": "Aptitud espacial",
+
+    "NUMERICO": "Aptitud numérica",
+    "NUMERICO.": "Aptitud numérica",
+    "APTITUD NUMERICA": "Aptitud numérica",
+    "APTITUD NUMERICA (BAT)": "Aptitud numérica",
+    "APTITUD NUMERICA (EFAI)": "Aptitud numérica",
+
+    "RAZONAMIENTO ABSTRACTO": "Razonamiento abstracto",
+    "ABSTRACTO": "Razonamiento abstracto",
+
+    "VERBAL": "Aptitud verbal",
+    "APTITUD VERBAL": "Aptitud verbal",
+
+    # Atención BAT
+    "ATENCION": "Atención",
+    "ATENCION (A)": "Atención",
+    "A": "Atención",
+    "CONCENTRACION": "Concentración",
+    "CONCENTRACION (CON)": "Concentración",
+    "CON": "Concentración",
+
+    # CARAS-R
+    "ACIERTOS NETOS (A-E)": "Aciertos netos (A-E)",
+    "ACIERTOS NETOS A-E": "Aciertos netos (A-E)",
+    "A E": "Aciertos netos (A-E)",
+    "ICI": "Control impulsividad (ICI)",
+    "CONTROL IMPULSIVIDAD": "Control impulsividad (ICI)",
+
+    # CTI (por si llegan en mayúscula plana)
+    "PCG": "Pensamiento constructivo global (PCG)",
+}
+
+
 def get_variable_info(area: str, variable: str) -> str:
     """
-    Devuelve una explicación breve y amigable para no psicólogos.
-    Incluye lógica especial para IPP-R, porque sus nombres se construyen como:
-    'Campo X - Actividades' / 'Campo X - Profesiones'.
+    Explicación breve y amigable para no psicólogos.
+    Incluye lógica especial para IPP-R.
     """
+    area = area or ""
+    variable_str = str(variable) if variable is not None else ""
+
     # IPP-R dinámico
-    if area.startswith("Orientación vocacional") and " - " in variable:
-        campo, tipo = variable.split(" - ", 1)
+    if area.startswith("Orientación vocacional") and " - " in variable_str:
+        campo, tipo = variable_str.split(" - ", 1)
         tipo_low = tipo.strip().lower()
         if tipo_low.startswith("activ"):
             return f"Interés por las actividades típicas del **{campo}**."
@@ -295,18 +326,52 @@ def get_variable_info(area: str, variable: str) -> str:
             return f"Interés por profesiones representativas del **{campo}**."
         return f"Interés relativo en el **{campo}**."
 
-    return VARIABLE_INFO.get(
-        variable,
-        "Variable específica de la prueba seleccionada. "
-        "Si quieres, puedo ayudarte a añadir su definición exacta cuando veamos el nombre tal cual aparece en tu Excel."
-    )
+    key_norm = normalize_var(variable_str)
+    canonical = ALIASES.get(key_norm, None)
+
+    # si el alias mapea a una clave existente en VARIABLE_INFO
+    if canonical and canonical in VARIABLE_INFO:
+        return VARIABLE_INFO[canonical]
+
+    # si el nombre exacto ya está en el diccionario
+    if variable_str in VARIABLE_INFO:
+        return VARIABLE_INFO[variable_str]
+
+    # fallback corto y útil
+    return "Definición breve no configurada para esta etiqueta en el tablero."
+
+
+# -----------------------------------------------------
+# Carga de datos
+# -----------------------------------------------------
+
+excel_path = "Ebeo_Percentiles.xlsx"  # Ajusta si está en otra ruta
+data = build_long_dataset(excel_path)
+
+# Normalizar etiquetas de sexo: M → Mujeres, V → Hombres
+data = data.copy()
+data['Sexo'] = data['Sexo'].apply(
+    lambda x: 'Mujeres' if str(x).strip().upper() == 'M'
+    else ('Hombres' if str(x).strip().upper() == 'V' else x)
+)
+
+# Añadir el rango cualitativo por percentil
+data['Rango'] = data['Puntuacion'].apply(clasificar_percentil)
+
+orden_rangos = [
+    "Muy bajo", "Bajo", "Medio-bajo",
+    "Medio", "Medio-alto", "Alto", "Muy alto"
+]
 
 # -----------------------------------------------------
 # Interfaz principal
 # -----------------------------------------------------
 
 st.title("Tablero de resultados Orientación")
-st.caption("Visualización de percentiles, rangos cualitativos e interpretación grupal por área, prueba, variable y sexo (sin datos personales).")
+st.caption(
+    "Visualización de percentiles, rangos cualitativos e interpretación grupal "
+    "por área, prueba, variable y sexo (sin datos personales)."
+)
 
 with st.expander("¿Cómo se interpretan los percentiles y los rangos?"):
     st.markdown(
@@ -323,8 +388,8 @@ with st.expander("¿Cómo se interpretan los percentiles y los rangos?"):
   - **Alto**: 85–97  
   - **Muy alto**: 98–99  
 
-Estos rangos siguen la lógica del informe (basada en desviaciones típicas) y están pensados para describir 
-si el grupo se sitúa por debajo, en torno o por encima del promedio del grupo normativo.
+Estos rangos están pensados para describir si el grupo se sitúa por debajo,
+en torno o por encima del promedio del grupo normativo.
         """
     )
 
@@ -385,12 +450,25 @@ if df_area.empty:
 # Bloque visible: significado de las variables seleccionadas
 # -----------------------------------------------------
 
-st.markdown("### ¿Qué miden estas variables? (explicación simple)")
+st.markdown("### ¿Qué miden estas variables?")
 
 with st.expander("Ver explicación de cada variable seleccionada", expanded=True):
     for v in vars_sel:
         st.markdown(f"**{v}**: {get_variable_info(area_sel, v)}")
 
+# Diagnóstico opcional: variables sin definición
+with st.expander("Diagnóstico del glosario (opcional)"):
+    sin_def = []
+    for v in vars_sel:
+        info = get_variable_info(area_sel, v)
+        if "no configurada" in info.lower():
+            sin_def.append(v)
+    if sin_def:
+        st.warning("Variables sin definición detectadas:")
+        for v in sin_def:
+            st.markdown(f"- {v}")
+    else:
+        st.success("Todas las variables seleccionadas tienen definición en el glosario.")
 
 # -----------------------------------------------------
 # Resumen numérico agregado (grupo completo)
@@ -425,7 +503,6 @@ st.dataframe(
 # Gráficos agregados (grupo completo)
 # -----------------------------------------------------
 
-# 1) Media de percentiles por variable
 st.markdown("### Gráfico 1: Media de percentiles por variable (grupo completo)")
 
 chart_bar = (
@@ -440,7 +517,6 @@ chart_bar = (
 
 st.altair_chart(chart_bar, use_container_width=True)
 
-# 2) Distribución de percentiles (boxplot)
 st.markdown("### Gráfico 2: Distribución de percentiles por variable (boxplot, grupo completo)")
 
 chart_box = (
@@ -455,7 +531,6 @@ chart_box = (
 
 st.altair_chart(chart_box, use_container_width=True)
 
-# 3) Distribución de rangos cualitativos (apilado jerárquico)
 st.markdown("### Gráfico 3: Porcentaje de estudiantes en cada rango cualitativo (grupo completo)")
 
 dist = (
@@ -475,20 +550,18 @@ chart_rangos = (
             stack='normalize',
             axis=alt.Axis(format='%', title='Proporción de estudiantes')
         ),
-        # El orden jerárquico lo controla el sort de color
         color=alt.Color('Rango:N', sort=orden_rangos),
         tooltip=['Variable', 'Rango', 'n']
     )
 )
 
-
 st.altair_chart(chart_rangos, use_container_width=True)
 
 st.markdown(
     """
-    **Nota:** El gráfico muestra, para cada variable, qué porcentaje del grupo se sitúa
-    en cada rango (Muy bajo, Bajo, Medio-bajo, Medio, Medio-alto, Alto, Muy alto),
-    respetando este orden jerárquico tanto en la leyenda como en la pila.
+**Nota:** El gráfico muestra, para cada variable, qué porcentaje del grupo se sitúa
+en cada rango (Muy bajo, Bajo, Medio-bajo, Medio, Medio-alto, Alto, Muy alto),
+respetando este orden jerárquico tanto en la leyenda como en la pila.
     """
 )
 
@@ -506,19 +579,21 @@ for _, row in resumen.iterrows():
     var = row['Variable']
     media = row['media']
 
+    # Redacción más psicológica/diagnóstica a nivel grupal
     if r in ["Muy bajo", "Bajo"]:
         extra = (
-            "conviene revisar si existen factores contextuales o dificultades "
-            "específicas que estén influyendo en esta área."
+            "esto sugiere un desempeño grupal por debajo del referente normativo; "
+            "puede requerir apoyos específicos y revisión de factores pedagógicos "
+            "y contextuales."
         )
     elif r in ["Medio-bajo", "Medio"]:
         extra = (
-            "el rendimiento grupal es similar al de la mayoría de estudiantes "
-            "del grupo normativo."
+            "el desempeño grupal se ubica dentro del rango esperado respecto "
+            "al referente normativo."
         )
-    else:  # Medio-alto, Alto, Muy alto
+    else:
         extra = (
-            "se observa un punto fuerte del grupo en comparación con el grupo normativo."
+            "esto sugiere una fortaleza grupal en comparación con el referente normativo."
         )
 
     definicion = get_variable_info(area_sel, var)
@@ -527,10 +602,8 @@ for _, row in resumen.iterrows():
         f"- **{var}**: {definicion} "
         f"Nivel grupal **{r}** (percentil medio ≈ {media:.0f}); {extra}"
     )
-    
-st.markdown(
-    "Estas frases están pensadas para usarse en informes de grupo o presentaciones:"
-)
+
+st.markdown("Estas frases están pensadas para usarse en informes de grupo o presentaciones:")
 for linea in interpretaciones:
     st.markdown(linea)
 
@@ -538,8 +611,8 @@ with st.expander("Guía rápida de lectura (para equipos no especializados)"):
     st.markdown(
         """
 - Este tablero muestra resultados **agregados** por curso/sede y sexo.
-- Las variables describen **habilidades, estilos de pensamiento o intereses** evaluados con pruebas estandarizadas.
-- Una media alta no siempre es “mejor” en todas las escalas; depende de lo que mida la variable.
+- Las variables describen **habilidades cognitivas, procesos atencionales, estilos de afrontamiento o intereses**.
+- Los resultados son útiles para **lectura institucional**; no sustituyen un análisis individual.
         """
     )
 
@@ -548,8 +621,6 @@ with st.expander("Guía rápida de lectura (para equipos no especializados)"):
 # -----------------------------------------------------
 
 st.markdown("## Análisis desagregado por sexo")
-
-# ---------------- Resumen por sexo y variable ----------------
 
 resumen_sexo = (
     df_area
@@ -575,8 +646,6 @@ st.dataframe(
     use_container_width=True
 )
 
-# ---------------- Distribución de rangos por sexo ----------------
-
 st.markdown("### Tabla 2. Distribución de rangos cualitativos por sexo y variable")
 
 tabla_rangos_sexo = (
@@ -586,7 +655,6 @@ tabla_rangos_sexo = (
     .reset_index(name='n')
 )
 
-# calcular porcentaje dentro de cada Sexo-Variable
 tabla_rangos_sexo['porcentaje'] = (
     tabla_rangos_sexo['n'] /
     tabla_rangos_sexo.groupby(['Sexo', 'Variable'])['n'].transform('sum') * 100
@@ -610,9 +678,7 @@ chart_bar_sexo = (
         color=alt.Color('Sexo:N', legend=None),
         tooltip=['Sexo', 'Variable', 'media', 'mediana', 'n', 'Rango_media']
     )
-    .facet(
-        column='Sexo:N'
-    )
+    .facet(column='Sexo:N')
 )
 
 st.altair_chart(chart_bar_sexo, use_container_width=True)
@@ -628,14 +694,11 @@ chart_box_sexo = (
         color=alt.Color('Sexo:N', legend=None),
         tooltip=['Sexo', 'Variable', 'Puntuacion']
     )
-    .facet(
-        column='Sexo:N'
-    )
+    .facet(column='Sexo:N')
 )
 
 st.altair_chart(chart_box_sexo, use_container_width=True)
 
-# 6) Distribución de rangos cualitativos por variable y sexo (apilado jerárquico + facet)
 st.markdown("### Gráfico 6: Porcentaje de estudiantes en cada rango, por variable y sexo")
 
 dist_sexo = (
@@ -658,21 +721,15 @@ chart_rangos_sexo = (
         color=alt.Color('Rango:N', sort=orden_rangos),
         tooltip=['Sexo', 'Variable', 'Rango', 'n']
     )
-    .facet(
-        column='Sexo:N'
-    )
+    .facet(column='Sexo:N')
 )
 
 st.altair_chart(chart_rangos_sexo, use_container_width=True)
 
 st.markdown(
     """
-    En estos gráficos se ve, para cada **sexo**, cómo se distribuyen los percentiles
-    y los rangos cualitativos en cada variable.  
-    No se muestra ningún dato identificable (solo agregados por sexo, clase y área).
+En estos gráficos se ve, para cada **sexo**, cómo se distribuyen los percentiles
+y los rangos cualitativos en cada variable.  
+No se muestra ningún dato identificable (solo agregados por sexo, clase y área).
     """
 )
-
-
-
-
