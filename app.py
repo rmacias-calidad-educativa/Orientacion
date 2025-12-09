@@ -157,6 +157,149 @@ orden_rangos = [
     "Muy bajo", "Bajo", "Medio-bajo",
     "Medio", "Medio-alto", "Alto", "Muy alto"
 ]
+# -----------------------------------------------------
+# Definiciones simples por variable (para no psicólogos)
+# Basadas en los epígrafes "¿Qué evalúa?" del informe e-BEO.
+# -----------------------------------------------------
+
+VARIABLE_INFO = {
+    # ---------------- Aptitudes intelectuales (EFAI 4 / BAT 7-S) ----------------
+    "Aptitud espacial": (
+        "Habilidad para imaginar y manipular mentalmente objetos "
+        "(girarlos, moverlos), orientarse y comprender relaciones espaciales."
+    ),
+    "Aptitud numérica": (
+        "Habilidad para razonar con números: realizar operaciones, "
+        "resolver problemas numéricos e interpretar tablas y gráficos."
+    ),
+    "Razonamiento abstracto": (
+        "Habilidad para descubrir reglas y relaciones lógicas en problemas "
+        "nuevos o con figuras/series abstractas."
+    ),
+    "Aptitud verbal": (
+        "Habilidad para comprender y razonar con palabras; "
+        "se relaciona con vocabulario y comprensión de conceptos."
+    ),
+
+    # ---------------- Atención (BAT 7-S) ----------------
+    # Según el manual, son dos componentes complementarios:
+    "Atención": (
+        "Velocidad para identificar información relevante e ignorar lo irrelevante "
+        "en tareas visuales. Se asocia a rapidez de procesamiento."
+    ),
+    "Concentración": (
+        "Precisión al procesar información visual, independiente de la velocidad. "
+        "Se asocia a calidad del procesamiento."
+    ),
+    # Variantes frecuentes de nombre en hojas:
+    "Atención (A)": (
+        "Velocidad para identificar información relevante e ignorar lo irrelevante "
+        "en tareas visuales."
+    ),
+    "Concentración (CON)": (
+        "Precisión del procesamiento visual, independiente de la velocidad."
+    ),
+
+    # ---------------- Atención y percepción (CARAS-R) ----------------
+    "Aciertos netos (A-E)": (
+        "Eficacia visoperceptiva y atencional considerando aciertos y errores."
+    ),
+    "Control impulsividad (ICI)": (
+        "Grado de control al responder; refleja un estilo más impulsivo o más reflexivo."
+    ),
+
+    # ---------------- Inteligencia emocional (CTI) ----------------
+    "Pensamiento constructivo global (PCG)": (
+        "Indicador general de la forma de pensar que facilita o dificulta "
+        "afrontar problemas de manera eficaz."
+    ),
+    "Afrontamiento emocional": (
+        "Forma de manejar emociones negativas con autoaceptación, resiliencia "
+        "y sin sobregeneralizar ni rumiar en exceso."
+    ),
+    "Autoaceptación": (
+        "Autoestima y actitud favorable hacia uno mismo."
+    ),
+    "Aus. de sobregeneralización": (
+        "Capacidad de interpretar experiencias negativas sin concluir que 'todo saldrá mal'."
+    ),
+    "Aus. de hipersensibilidad": (
+        "Resiliencia ante críticas, contratiempos o incertidumbre."
+    ),
+    "Aus. de rumiaciones": (
+        "Tendencia baja a quedarse enganchado a lo negativo."
+    ),
+    "Afrontamiento conductual": (
+        "Forma de pensar que impulsa acciones eficaces ante problemas."
+    ),
+    "Pensamiento positivo": (
+        "Tendencia a interpretar situaciones de forma realista y favorable para actuar."
+    ),
+    "Orientación a la acción": (
+        "Tendencia a actuar ante los problemas en vez de postergar."
+    ),
+    "Responsabilidad": (
+        "Planificación y cuidado al realizar tareas."
+    ),
+    "Pensamiento mágico": (
+        "Tendencia a supersticiones privadas o ideas no basadas en evidencia."
+    ),
+    "Pensamiento categórico": (
+        "Tendencia a ver la realidad en blanco/negro, con poca tolerancia a matices."
+    ),
+    "Pensamiento polarizado": (
+        "Componente de rigidez cognitiva tipo 'todo o nada'."
+    ),
+    "Suspicacia": (
+        "Tendencia a desconfiar o interpretar intenciones negativas en otros."
+    ),
+    "Intransigencia": (
+        "Dificultad para aceptar diferencias en los demás."
+    ),
+    "Pensamiento esotérico": (
+        "Tendencia a creer en fenómenos mágicos o paranormales."
+    ),
+    "Creencias paranormales": (
+        "Creencia en fenómenos como lectura de mente, fantasmas, clarividencia, etc."
+    ),
+    "Pensamiento supersticioso": (
+        "Creencia en supersticiones convencionales y agüeros."
+    ),
+    "Optimismo ingenuo": (
+        "Optimismo sin suficiente fundamento; puede llevar a decisiones poco realistas."
+    ),
+    "Pensamiento exagerado": (
+        "Esperar éxitos encadenados tras un resultado favorable."
+    ),
+    "Pensamiento estereotipado": (
+        "Creencias idealizadas o simplificadas sobre la realidad social."
+    ),
+    "Ingenuidad": (
+        "Tendencia a asumir que los demás actuarán siempre con buenas intenciones."
+    ),
+}
+
+def get_variable_info(area: str, variable: str) -> str:
+    """
+    Devuelve una explicación breve y amigable para no psicólogos.
+    Incluye lógica especial para IPP-R, porque sus nombres se construyen como:
+    'Campo X - Actividades' / 'Campo X - Profesiones'.
+    """
+    # IPP-R dinámico
+    if area.startswith("Orientación vocacional") and " - " in variable:
+        campo, tipo = variable.split(" - ", 1)
+        tipo_low = tipo.strip().lower()
+        if tipo_low.startswith("activ"):
+            return f"Interés por las actividades típicas del **{campo}**."
+        if tipo_low.startswith("prof"):
+            return f"Interés por profesiones representativas del **{campo}**."
+        return f"Interés relativo en el **{campo}**."
+
+    return VARIABLE_INFO.get(
+        variable,
+        "Variable específica de la prueba seleccionada. "
+        "Si quieres, puedo ayudarte a añadir su definición exacta cuando veamos el nombre tal cual aparece en tu Excel."
+    )
 
 # -----------------------------------------------------
 # Interfaz principal
@@ -237,6 +380,17 @@ df_area = df_area[df_area['Variable'].isin(vars_sel)].copy()
 if df_area.empty:
     st.warning("No hay datos para las variables seleccionadas.")
     st.stop()
+
+# -----------------------------------------------------
+# Bloque visible: significado de las variables seleccionadas
+# -----------------------------------------------------
+
+st.markdown("### ¿Qué miden estas variables? (explicación simple)")
+
+with st.expander("Ver explicación de cada variable seleccionada", expanded=True):
+    for v in vars_sel:
+        st.markdown(f"**{v}**: {get_variable_info(area_sel, v)}")
+
 
 # -----------------------------------------------------
 # Resumen numérico agregado (grupo completo)
@@ -367,22 +521,27 @@ for _, row in resumen.iterrows():
             "se observa un punto fuerte del grupo en comparación con el grupo normativo."
         )
 
-    interpretaciones.append(
-        f"- **{var}**: nivel **{r}** (percentil medio ≈ {media:.0f}); {extra}"
-    )
+    definicion = get_variable_info(area_sel, var)
 
+    interpretaciones.append(
+        f"- **{var}**: {definicion} "
+        f"Nivel grupal **{r}** (percentil medio ≈ {media:.0f}); {extra}"
+    )
+    
 st.markdown(
     "Estas frases están pensadas para usarse en informes de grupo o presentaciones:"
 )
 for linea in interpretaciones:
     st.markdown(linea)
 
-st.markdown(
-    """
-    _Recuerda_: Estas interpretaciones son **agrupadas**. Dentro del mismo curso o sede
-    puede haber estudiantes individuales con perfiles muy distintos.
-    """
-)
+with st.expander("Guía rápida de lectura (para equipos no especializados)"):
+    st.markdown(
+        """
+- Este tablero muestra resultados **agregados** por curso/sede y sexo.
+- Las variables describen **habilidades, estilos de pensamiento o intereses** evaluados con pruebas estandarizadas.
+- Una media alta no siempre es “mejor” en todas las escalas; depende de lo que mida la variable.
+        """
+    )
 
 # -----------------------------------------------------
 # NUEVO BLOQUE: Análisis desagregado por sexo
@@ -513,6 +672,7 @@ st.markdown(
     No se muestra ningún dato identificable (solo agregados por sexo, clase y área).
     """
 )
+
 
 
 
